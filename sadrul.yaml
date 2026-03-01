@@ -1,0 +1,1557 @@
+openapi: 3.0.3
+info:
+  title: Medium Clone API
+  description: |
+    RESTful API documentation for the Medium clone application.
+    This API powers a content publishing platform with features including
+    article reading/writing, author profiles, publications, search,
+    user libraries (highlights, saved articles, reading history, responses),
+    and reading statistics.
+  version: 1.0.0
+  contact:
+    name: Medium Clone API Support
+    email: support@mediumclone.example.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://api.mediumclone.example.com/v1
+    description: Production server
+  - url: http://localhost:3000/v1
+    description: Local development server
+
+tags:
+  - name: Search
+    description: Search across articles, authors, and publications
+  - name: Articles
+    description: Operations related to articles (stories)
+  - name: Response
+    description: Make comment on an article
+  - name: Inline-Response
+    description: Make inline comment
+  - name: Highlights
+    description: User highlights on article text
+  - name: Authors
+    description: Author profile and follow operations
+  - name: Publications
+    description: Publication profile and follow operations
+  - name: Library
+    description: User library — highlights, saved articles, reading history, and responses
+  
+paths:
+  # ───────────────────────── Articles ─────────────────────────
+  /user/{userId}/articles:
+    get:
+      tags: [Articles]
+      summary: List articles (home feed)
+      description: >
+        Returns a paginated list of recommended articles for the home feed.
+        Supports filtering by tag and sorting.
+      operationId: listArticles
+      parameters:
+        - $ref: '#/components/parameters/UserIdParam'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+        - name: tag
+          in: query
+          description: Filter articles by tag name
+          schema:
+            type: string
+            example: Web Development
+        - name: sort
+          in: query
+          description: Sort order for articles
+          schema:
+            type: string
+            enum: [latest, popular, recommended]
+            default: recommended
+      responses:
+        '200':
+          description: Paginated list of articles
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArticleListResponse'
+
+
+  /articles/{articleId}:
+    get:
+      tags: [Articles]
+      summary: Get a single article by ID
+      description: Returns the full article including content paragraphs, author info, and metadata.
+      operationId: getArticle
+      parameters:
+        - $ref: '#/components/parameters/ArticleIdParam'
+      responses:
+        '200':
+          description: Article details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Article'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+
+  /articles/{articleId}/clap/{userId}:
+    post:
+      tags: [Articles]
+      summary: Clap for an article
+      description: Increments the clap count for the article. A user can clap multiple times (up to 50).
+      operationId: clapArticle
+      parameters:
+        - $ref: '#/components/parameters/ArticleIdParam'
+        - $ref: '#/components/parameters/UserIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId]
+              properties:
+                userId:
+                  type: string
+                  description: ID of the user clapping
+                  example: sarah-johnson
+                count:
+                  type: integer
+                  minimum: 1
+                  maximum: 50
+                  default: 1
+                  description: Number of claps to add
+      responses:
+        '200':
+          description: Clap registered
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  totalClaps:
+                    type: integer
+                    example: 1235
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /articles/{articleId}/responses:
+    get:
+      tags: [Response]
+      summary: List responses (comments) on an article
+      operationId: listArticleResponses
+      parameters:
+        - $ref: '#/components/parameters/ArticleIdParam'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        '200':
+          description: List of responses
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseListResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /articles/{articleId}/responses/{userId}:
+    post:
+      tags: [Response]
+      summary: Post a response (comment) on an article
+      operationId: createArticleResponse
+      parameters:
+        - $ref: '#/components/parameters/ArticleIdParam'
+        - $ref: '#/components/parameters/UserIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId, text]
+              properties:
+                userId:
+                  type: string
+                  description: ID of the user posting the comment
+                  example: sarah-johnson
+                text:
+                  type: string
+                  maxLength: 5000
+                  example: >
+                    Really insightful article! I particularly appreciate the
+                    section on AI-assisted development.
+      responses:
+        '201':
+          description: Response created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  
+
+  /articles/{articleId}/responses/{userId}/{responseId}:
+    put:
+      tags: [Response]
+      summary: Update a response (comment) on an article
+      operationId: updateArticleResponse
+      parameters:
+        - $ref: '#/components/parameters/ArticleIdParam'
+        - $ref: '#/components/parameters/UserIdParam'
+        - name: responseId
+          in: path
+          required: true
+          description: ID of the response to update
+          schema:
+            type: string
+            example: '1'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId, text]
+              properties:
+                userId:
+                  type: string
+                  description: ID of the user updating the comment
+                  example: sarah-johnson
+                text:
+                  type: string
+                  maxLength: 5000
+                  example: >
+                    Updated comment — really insightful article! I particularly
+                    appreciate the section on AI-assisted development.
+      responses:
+        '200':
+          description: Response updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Response]
+      summary: Delete a comment (response) on an article
+      operationId: deleteArticleResponse
+      parameters:
+        - $ref: '#/components/parameters/ArticleIdParam'
+        - $ref: '#/components/parameters/UserIdParam'
+        - name: responseId
+          in: path
+          required: true
+          description: ID of the response to delete
+          schema:
+            type: string
+            example: '1'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId]
+              properties:
+                userId:
+                  type: string
+                  description: ID of the user requesting the deletion
+                  example: sarah-johnson
+      responses:
+        '204':
+          description: Comment deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ───────────────────────── Inline Responses ─────────────────────────
+  /articles/{articleId}/inline-responses:
+    get:
+      tags: [Inline-Response]
+      summary: List inline responses on a specific article
+      description: Returns inline responses (annotations/replies attached to specific text selections) for an article.
+      operationId: listInlineResponses
+      parameters:
+        - $ref: '#/components/parameters/ArticleIdParam'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        '200':
+          description: List of inline responses
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InlineResponseListResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /articles/{articleId}/inline-responses/{userId}:
+    post:
+      tags: [Inline-Response]
+      summary: Create an inline response on an article
+      description: Attaches a response to a specific highlighted portion of article text.
+      operationId: createInlineResponse
+      parameters:
+        - $ref: '#/components/parameters/ArticleIdParam'
+        - $ref: '#/components/parameters/UserIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InlineResponseCreateRequest'
+      responses:
+        '201':
+          description: Inline response created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InlineResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /articles/{articleId}/inline-responses/{userId}/{inlineResponseId}:
+    put:
+      tags: [Inline-Response]
+      summary: Update an inline response on an article
+      description: Updates the text of an inline response attached to a specific highlighted portion of article text.
+      operationId: updateInlineResponse
+      parameters:
+        - $ref: '#/components/parameters/ArticleIdParam'
+        - $ref: '#/components/parameters/UserIdParam'
+        - name: inlineResponseId
+          in: path
+          required: true
+          description: ID of the inline response to update
+          schema:
+            type: string
+            example: '1'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId, text]
+              properties:
+                userId:
+                  type: string
+                  description: ID of the user updating the inline response
+                  example: sarah-johnson
+                text:
+                  type: string
+                  maxLength: 5000
+                  example: >
+                    Updated inline note — this paragraph perfectly illustrates
+                    the point about modern development workflows.
+      responses:
+        '200':
+          description: Inline response updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InlineResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Inline-Response]
+      summary: Delete an inline response
+      operationId: deleteInlineResponse
+      parameters:
+        - $ref: '#/components/parameters/ArticleIdParam'
+        - $ref: '#/components/parameters/UserIdParam'
+        - name: inlineResponseId
+          in: path
+          required: true
+          description: ID of the inline response to delete
+          schema:
+            type: string
+            example: '1'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId]
+              properties:
+                userId:
+                  type: string
+                  description: ID of the user requesting the deletion
+                  example: sarah-johnson
+      responses:
+        '204':
+          description: Inline response deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ───────────────────────── Article Highlights ─────────────────────────
+  /articles/{articleId}/highlights/{userId}:
+    get:
+      tags: [Highlights]
+      summary: Get a user's highlights on a specific article
+      description: Returns all text highlights a user has made on a particular article.
+      operationId: listArticleHighlightsByUser
+      parameters:
+        - $ref: '#/components/parameters/ArticleIdParam'
+        - $ref: '#/components/parameters/UserIdParam'
+      responses:
+        '200':
+          description: List of highlights for the user on this article
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HighlightListResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /articles/{articleId}/highlight/{userId}:
+    post:
+      tags: [Highlights]
+      summary: Highlight text in an article
+      description: Creates a new highlight on a portion of article text. Requires userId in the body.
+      operationId: createArticleHighlight
+      parameters:
+        - $ref: '#/components/parameters/ArticleIdParam'
+        - $ref: '#/components/parameters/UserIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HighlightCreateRequest'
+      responses:
+        '201':
+          description: Highlight created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Highlight'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /articles/{articleId}/highlights/{userId}/{highlightId}:
+    delete:
+      tags: [Highlights]
+      summary: Delete a highlight from an article
+      operationId: deleteArticleHighlight
+      parameters:
+        - $ref: '#/components/parameters/UserIdParam'
+        - $ref: '#/components/parameters/ArticleIdParam'
+        - name: highlightId
+          in: path
+          required: true
+          description: ID of the highlight to delete
+          schema:
+            type: string
+            example: '1'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId]
+              properties:
+                userId:
+                  type: string
+                  description: ID of the user requesting the deletion
+                  example: sarah-johnson
+      responses:
+        '204':
+          description: Highlight deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ───────────────────────── Authors ─────────────────────────
+  /authors:
+    get:
+      tags: [Authors]
+      summary: List authors
+      operationId: listAuthors
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        '200':
+          description: Paginated list of authors
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthorListResponse'
+
+
+  /authors/{authorId}:
+    get:
+      tags: [Authors]
+      summary: Get an author profile
+      description: Returns the author's profile including bio, follower/following counts, and article count.
+      operationId: getAuthor
+      parameters:
+        - $ref: '#/components/parameters/AuthorIdParam'
+      responses:
+        '200':
+          description: Author profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Author'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /authors/{authorId}/articles:
+    get:
+      tags: [Authors]
+      summary: List articles by an author
+      operationId: listAuthorArticles
+      parameters:
+        - $ref: '#/components/parameters/AuthorIdParam'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        '200':
+          description: Author's articles
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArticleListResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  
+  /authors/{authorId}/following/{userId}:
+    get:
+      tags: [Authors]
+      summary: Get list of authors and publications a user follows
+      operationId: listFollowing
+      parameters:
+        - $ref: '#/components/parameters/AuthorIdParam'
+        - $ref: '#/components/parameters/UserIdParam'
+        - name: type
+          in: query
+          description: Filter by following type
+          schema:
+            type: string
+            enum: [author, publication]
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        '200':
+          description: Following list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FollowingListResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /authors/{authorId}/follow/{userId}:
+    post:
+      tags: [Authors]
+      summary: Follow an author
+      operationId: followAuthor
+      parameters:
+        - $ref: '#/components/parameters/UserIdParam'
+        - $ref: '#/components/parameters/AuthorIdParam'
+      responses:
+        '200':
+          description: Author followed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  following:
+                    type: boolean
+                    example: true
+                  followerCount:
+                    type: integer
+                    example: 12501
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /authors/{authorId}/unfollow/{userId}:
+    delete:
+      tags: [Authors]
+      summary: Unfollow an author
+      operationId: unfollowAuthor
+      parameters:
+        - $ref: '#/components/parameters/UserIdParam'
+        - $ref: '#/components/parameters/AuthorIdParam'
+      responses:
+        '200':
+          description: Author unfollowed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  following:
+                    type: boolean
+                    example: false
+                  followerCount:
+                    type: integer
+                    example: 12499
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ───────────────────────── Publications ─────────────────────────
+  /publications:
+    get:
+      tags: [Publications]
+      summary: List publications
+      operationId: listPublications
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        '200':
+          description: Paginated list of publications
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicationListResponse'
+
+
+  /publications/{publicationId}:
+    get:
+      tags: [Publications]
+      summary: Get a publication profile
+      description: Returns the publication's profile including description, follower count, and article count.
+      operationId: getPublication
+      parameters:
+        - $ref: '#/components/parameters/PublicationIdParam'
+      responses:
+        '200':
+          description: Publication profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Publication'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /publications/{publicationId}/articles:
+    get:
+      tags: [Publications]
+      summary: List articles in a publication
+      operationId: listPublicationArticles
+      parameters:
+        - $ref: '#/components/parameters/PublicationIdParam'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        '200':
+          description: Publication's articles
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArticleListResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  
+  /publications/{publicationId}/following/{userId}:
+    get:
+      tags: [Publications]
+      summary: Get list of authors and publications a user follows
+      operationId: publnicationFollowing
+      parameters:
+        - $ref: '#/components/parameters/PublicationIdParam'
+        - $ref: '#/components/parameters/UserIdParam'
+        - name: type
+          in: query
+          description: Filter by following type
+          schema:
+            type: string
+            enum: [author, publication]
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        '200':
+          description: Following list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FollowingListResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /publications/{publicationId}/follow/{userId}:
+    post:
+      tags: [Publications]
+      summary: Follow a publication
+      operationId: followPublication
+      parameters:
+        - $ref: '#/components/parameters/UserIdParam'
+        - $ref: '#/components/parameters/PublicationIdParam'
+      responses:
+        '200':
+          description: Publication followed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  following:
+                    type: boolean
+                    example: true
+                  followerCount:
+                    type: integer
+                    example: 125001
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /publications/{publicationId}/unfollow/{userId}:
+    delete:
+      tags: [Publications]
+      summary: Unfollow a publication
+      operationId: unfollowPublication
+      parameters:
+        - $ref: '#/components/parameters/UserIdParam'
+        - $ref: '#/components/parameters/PublicationIdParam'
+      responses:
+        '200':
+          description: Publication unfollowed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  following:
+                    type: boolean
+                    example: false
+                  followerCount:
+                    type: integer
+                    example: 124999
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ───────────────────────── Search ─────────────────────────
+  /search:
+    get:
+      tags: [Search]
+      summary: Search across stories, people, and publications
+      description: >
+        Unified search endpoint. Returns matching articles, authors, and
+        publications based on the query string. Results can be filtered
+        by type using the `type` parameter.
+      operationId: search
+      parameters:
+        - name: q
+          in: query
+          required: true
+          description: Search query string
+          schema:
+            type: string
+            minLength: 1
+            example: web development
+        - name: type
+          in: query
+          description: Filter results by type
+          schema:
+            type: string
+            enum: [stories, people, publications]
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+        '400':
+          description: Missing or invalid query parameter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+
+  # ───────────────────────── Library — Highlights ─────────────────────────
+  /users/{userId}/library/highlights:
+    get:
+      tags: [Library]
+      summary: Get user's highlights
+      operationId: listHighlights
+      parameters:
+        - $ref: '#/components/parameters/UserIdParam'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        '200':
+          description: List of highlights
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HighlightListResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+
+  /users/{userId}/library/highlights/{highlightId}:
+    delete:
+      tags: [Library]
+      summary: Delete a highlight
+      operationId: deleteHighlight
+      parameters:
+        - $ref: '#/components/parameters/UserIdParam'
+        - name: highlightId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Highlight deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ───────────────────────── Library — Saved Articles ─────────────────────────
+  /users/{userId}/library/saved:
+    get:
+      tags: [Library]
+      summary: Get user's saved (bookmarked) articles
+      operationId: listSavedArticles
+      parameters:
+        - $ref: '#/components/parameters/UserIdParam'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        '200':
+          description: List of saved articles
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArticleListResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  
+  /users/{userId}/library/saved/{articleId}:
+    delete:
+      tags: [Library]
+      summary: Remove a saved article
+      operationId: unsaveArticle
+      parameters:
+        - $ref: '#/components/parameters/UserIdParam'
+        - $ref: '#/components/parameters/ArticleIdParam'
+      responses:
+        '204':
+          description: Article removed from saved
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ───────────────────────── Library — Reading History ─────────────────────────
+  /users/{userId}/library/history:
+    get:
+      tags: [Library]
+      summary: Get user's reading history
+      operationId: listReadingHistory
+      parameters:
+        - $ref: '#/components/parameters/UserIdParam'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        '200':
+          description: Reading history
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadingHistoryListResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  
+
+  /users/{userId}/library/history/{historyId}:
+    delete:
+      tags: [Library]
+      summary: Delete a reading history entry
+      description: Removes a single reading history entry from the user's library.
+      operationId: deleteReadingHistoryEntry
+      parameters:
+        - $ref: '#/components/parameters/UserIdParam'
+        - name: historyId
+          in: path
+          required: true
+          description: ID of the reading history entry to delete
+          schema:
+            type: string
+            example: '1'
+      responses:
+        '204':
+          description: Reading history entry deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ───────────────────────── Library — Responses ─────────────────────────
+  /users/{userId}/library/responses:
+    get:
+      tags: [Library]
+      summary: Get user's own responses across all articles
+      operationId: listUserResponses
+      parameters:
+        - $ref: '#/components/parameters/UserIdParam'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        '200':
+          description: User's responses
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseListResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /users/{userId}/library/responses/{articleId}/{responseId}:
+    delete:
+      tags: [Library]
+      summary: Delete a user's response
+      operationId: deleteResponse
+      parameters:
+        - $ref: '#/components/parameters/ArticleIdParam'
+        - $ref: '#/components/parameters/UserIdParam'
+        - name: responseId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Response deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ───────────────────────── Following ─────────────────────────
+  # /users/{userId}/following:
+  #   get:
+  #     tags: [Following]
+  #     summary: Get list of authors and publications a user follows
+  #     operationId: listFollowing
+  #     parameters:
+  #       - $ref: '#/components/parameters/UserIdParam'
+  #       - name: type
+  #         in: query
+  #         description: Filter by following type
+  #         schema:
+  #           type: string
+  #           enum: [author, publication]
+  #       - $ref: '#/components/parameters/PageParam'
+  #       - $ref: '#/components/parameters/LimitParam'
+  #     responses:
+  #       '200':
+  #         description: Following list
+  #         content:
+  #           application/json:
+  #             schema:
+  #               $ref: '#/components/schemas/FollowingListResponse'
+  #       '404':
+  #         $ref: '#/components/responses/NotFound'
+
+ 
+   
+
+# ═══════════════════════════════════════════════════════════════════════
+# Components
+# ═══════════════════════════════════════════════════════════════════════
+components:
+  # ───────── Reusable Parameters ─────────
+  parameters:
+    PageParam:
+      name: page
+      in: query
+      description: Page number (1-indexed)
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+
+    LimitParam:
+      name: limit
+      in: query
+      description: Number of items per page
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+
+    ArticleIdParam:
+      name: articleId
+      in: path
+      required: true
+      description: Unique article identifier
+      schema:
+        type: string
+        example: '1'
+
+    AuthorIdParam:
+      name: authorId
+      in: path
+      required: true
+      description: Unique author identifier (slug)
+      schema:
+        type: string
+        example: sarah-johnson
+
+    PublicationIdParam:
+      name: publicationId
+      in: path
+      required: true
+      description: Unique publication identifier (slug)
+      schema:
+        type: string
+        example: tech-insights
+
+    UserIdParam:
+      name: userId
+      in: path
+      required: true
+      description: Unique user identifier
+      schema:
+        type: string
+        example: sarah-johnson
+
+  # ───────── Reusable Responses ─────────
+  responses:
+    Forbidden:
+      description: Insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: 403
+            message: You do not have permission to perform this action.
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: 404
+            message: The requested resource was not found.
+
+  # ───────── Schemas ─────────
+  schemas:
+    # ── Pagination ──
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 20
+        totalItems:
+          type: integer
+          example: 45
+        totalPages:
+          type: integer
+          example: 3
+
+    # ── Error ──
+    Error:
+      type: object
+      properties:
+        code:
+          type: integer
+          example: 400
+        message:
+          type: string
+          example: Bad request
+
+    # ── Embedded Author (inside Article) ──
+    ArticleAuthor:
+      type: object
+      properties:
+        id:
+          type: string
+          example: sarah-johnson
+        name:
+          type: string
+          example: Sarah Johnson
+        avatar:
+          type: string
+          format: uri
+          example: https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&h=150&fit=crop
+        bio:
+          type: string
+          example: Senior Software Engineer and tech writer passionate about web technologies
+
+    # ── Article (full) ──
+    Article:
+      type: object
+      properties:
+        id:
+          type: string
+          example: '1'
+        title:
+          type: string
+          example: 'The Future of Web Development: What to Expect in 2026'
+        subtitle:
+          type: string
+          example: Exploring emerging trends and technologies shaping the next generation of web applications
+        author:
+          $ref: '#/components/schemas/ArticleAuthor'
+        publication:
+          type: string
+          example: Tech Insights
+        readingTime:
+          type: integer
+          description: Estimated reading time in minutes
+          example: 8
+        tags:
+          type: array
+          items:
+            type: string
+          example: [Web Development, Technology, Future]
+        claps:
+          type: integer
+          example: 1234
+        date:
+          type: string
+          format: date
+          example: '2026-02-25'
+        content:
+          type: array
+          description: Article body split into paragraphs
+          items:
+            type: string
+          example:
+            - 'Web development is evolving at an unprecedented pace.'
+            - 'The rise of AI-assisted development tools has transformed the way developers write code.'
+        coverImage:
+          type: string
+          format: uri
+          nullable: true
+          example: https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=800&h=400&fit=crop
+
+    # ── Article Summary (for lists) ──
+    ArticleSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          example: '1'
+        title:
+          type: string
+          example: 'The Future of Web Development: What to Expect in 2026'
+        subtitle:
+          type: string
+          example: Exploring emerging trends and technologies
+        author:
+          $ref: '#/components/schemas/ArticleAuthor'
+        publication:
+          type: string
+          example: Tech Insights
+        readingTime:
+          type: integer
+          example: 8
+        tags:
+          type: array
+          items:
+            type: string
+          example: [Web Development, Technology]
+        claps:
+          type: integer
+          example: 1234
+        date:
+          type: string
+          format: date
+          example: '2026-02-25'
+        coverImage:
+          type: string
+          format: uri
+          nullable: true
+
+    # ── Article Create / Update Requests ──
+    ArticleCreateRequest:
+      type: object
+      required: [userId, title, content]
+      properties:
+        userId:
+          type: string
+          description: ID of the user (author) creating the article
+          example: sarah-johnson
+        title:
+          type: string
+          maxLength: 200
+          example: My New Article
+        subtitle:
+          type: string
+          maxLength: 300
+          example: An introduction to modern web concepts
+        publicationId:
+          type: string
+          description: Publication to publish under (optional)
+          example: tech-insights
+        tags:
+          type: array
+          items:
+            type: string
+          maxItems: 5
+          example: [Web Development, React]
+        content:
+          type: array
+          description: Article body split into paragraphs
+          items:
+            type: string
+        coverImage:
+          type: string
+          format: uri
+
+    ArticleUpdateRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 200
+        subtitle:
+          type: string
+          maxLength: 300
+        tags:
+          type: array
+          items:
+            type: string
+          maxItems: 5
+        content:
+          type: array
+          items:
+            type: string
+        coverImage:
+          type: string
+          format: uri
+
+    # ── Article List Response ──
+    ArticleListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ArticleSummary'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    # ── Author ──
+    Author:
+      type: object
+      properties:
+        id:
+          type: string
+          example: sarah-johnson
+        name:
+          type: string
+          example: Sarah Johnson
+        avatar:
+          type: string
+          format: uri
+          example: https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&h=150&fit=crop
+        bio:
+          type: string
+          example: Senior Software Engineer and tech writer passionate about web technologies.
+        followers:
+          type: integer
+          example: 12500
+        following:
+          type: integer
+          example: 340
+        articles:
+          type: integer
+          description: Total number of articles published
+          example: 45
+
+    AuthorListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Author'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    # ── Publication ──
+    Publication:
+      type: object
+      properties:
+        id:
+          type: string
+          example: tech-insights
+        name:
+          type: string
+          example: Tech Insights
+        description:
+          type: string
+          example: In-depth analysis of emerging technologies and trends shaping the future of software development.
+        avatar:
+          type: string
+          format: uri
+          example: https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=150&h=150&fit=crop
+        followers:
+          type: integer
+          example: 125000
+        articlesCount:
+          type: integer
+          example: 450
+
+    PublicationListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Publication'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    # ── Highlight ──
+    Highlight:
+      type: object
+      properties:
+        id:
+          type: string
+          example: '1'
+        articleId:
+          type: string
+          example: '1'
+        articleTitle:
+          type: string
+          example: The Future of Web Development
+        text:
+          type: string
+          example: Web development is evolving at an unprecedented pace.
+        color:
+          type: string
+          enum: [yellow, green, blue, pink, purple]
+          example: yellow
+        date:
+          type: string
+          format: date
+          example: '2026-02-27'
+
+    HighlightCreateRequest:
+      type: object
+      required: [userId, articleId, text]
+      properties:
+        userId:
+          type: string
+          description: ID of the user creating the highlight
+          example: sarah-johnson
+        articleId:
+          type: string
+          example: '1'
+        text:
+          type: string
+          example: Web development is evolving at an unprecedented pace.
+        color:
+          type: string
+          enum: [yellow, green, blue, pink, purple]
+          default: yellow
+
+    HighlightListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Highlight'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    # ── Response (Comment) ──
+    Response:
+      type: object
+      properties:
+        id:
+          type: string
+          example: '1'
+        articleId:
+          type: string
+          example: '1'
+        articleTitle:
+          type: string
+          example: The Future of Web Development
+        text:
+          type: string
+          example: Really insightful article! I particularly appreciate the section on AI-assisted development.
+        date:
+          type: string
+          format: date
+          example: '2026-02-27'
+        likes:
+          type: integer
+          example: 12
+        author:
+          $ref: '#/components/schemas/ArticleAuthor'
+
+    ResponseListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Response'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    # ── Reading History ──
+    ReadingHistoryEntry:
+      type: object
+      properties:
+        id:
+          type: string
+          example: '1'
+        title:
+          type: string
+          example: The Future of Web Development
+        date:
+          type: string
+          format: date
+          example: '2026-02-27'
+        timeSpent:
+          type: integer
+          description: Time spent reading in minutes
+          example: 8
+        tags:
+          type: array
+          items:
+            type: string
+          example: [Web Development, Technology]
+
+    ReadingHistoryListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReadingHistoryEntry'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    # ── Search ──
+    SearchResponse:
+      type: object
+      properties:
+        stories:
+          type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/ArticleSummary'
+            total:
+              type: integer
+              example: 3
+        people:
+          type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/Author'
+            total:
+              type: integer
+              example: 2
+        publications:
+          type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/Publication'
+            total:
+              type: integer
+              example: 1
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    # ── Inline Response ──
+    InlineResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          example: '1'
+        articleId:
+          type: string
+          example: '1'
+        userId:
+          type: string
+          example: sarah-johnson
+        selectedText:
+          type: string
+          description: The portion of article text the inline response is attached to
+          example: Web development is evolving at an unprecedented pace.
+        paragraphIndex:
+          type: integer
+          description: Zero-based index of the content paragraph containing the selected text
+          example: 0
+        text:
+          type: string
+          description: The inline response/annotation text
+          example: This is a great opening statement!
+        date:
+          type: string
+          format: date
+          example: '2026-02-27'
+        likes:
+          type: integer
+          example: 5
+
+    InlineResponseCreateRequest:
+      type: object
+      required: [userId, selectedText, paragraphIndex, text]
+      properties:
+        userId:
+          type: string
+          description: ID of the user creating the inline response
+          example: sarah-johnson
+        selectedText:
+          type: string
+          description: The highlighted portion of text the response is attached to
+          example: Web development is evolving at an unprecedented pace.
+        paragraphIndex:
+          type: integer
+          description: Zero-based index of the content paragraph
+          example: 0
+        text:
+          type: string
+          maxLength: 2000
+          description: The inline response text
+          example: This is a great opening statement!
+
+    InlineResponseListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/InlineResponse'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    # ── Following List ──
+    FollowingListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+                example: Sarah Johnson
+              avatar:
+                type: string
+                format: uri
+                example: https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&h=150&fit=crop
+              type:
+                type: string
+                enum: [author, publication]
+                example: author
+
+
+
